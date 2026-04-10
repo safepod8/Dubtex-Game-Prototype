@@ -630,8 +630,8 @@ class Boss {
     }
 
     pickAttack() {
-        let pool = ['idle', 'lasers', 'spiral'];
-        if (this.phase >= 2) pool.push('cross');
+        let pool = ['idle', 'cross', 'spiral'];
+        if (this.phase >= 2) pool.push('lasers', 'cross', 'spiral';
         if (this.phase >= 3) pool.push('lasers', 'spiral', 'half_laser'); 
         
         this.state = pool[Math.floor(Math.random() * pool.length)];
