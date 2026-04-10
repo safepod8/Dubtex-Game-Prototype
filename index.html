@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>DUBTEX</title>
+    <title>DUBTEX - THE SIX EYES</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
@@ -73,10 +73,12 @@
             cursor: pointer;
             text-transform: uppercase;
         }
+        
         .btn:hover {
             transform: scale(1.05);
             filter: brightness(1.2);
         }
+        
         .btn:active {
             transform: scale(0.95);
         }
@@ -189,12 +191,20 @@
     <div id="start-screen" class="overlay screen-darken">
         <h1 class="text-orange-600 text-5xl mb-6 text-center leading-tight drop-shadow-[0_6px_0px_#440000]">DUBTEX</h1>
         <p class="text-white text-[10px] mb-10 text-center max-w-[300px] leading-loose opacity-80">
-            [OBJECTIVES]<br>
-            DESTROY THE WATCHER.<br>
-            EVADE THE LAZERS.<br>
-            MOVEMENT IS KEY.
+            [OBJECTIVE]<br>
+            NEUTRALIZE THE CORE.<br>
+            EVADE THE LASER GRID.<br>
+            MOVEMENT IS MANDATORY.
         </p>
         <button id="start-btn" class="btn bg-orange-700 text-white px-10 py-6 border-b-8 border-orange-950 hover:bg-orange-600 text-xs tracking-widest">START COMBAT</button>
+    </div>
+
+    <div id="judgment-screen" class="overlay screen-darken hidden">
+        <h2 class="text-white text-xl mb-12 text-center">THE ANOMALY IS WEAKENED...</h2>
+        <div class="flex gap-10">
+            <button id="kill-btn" class="btn bg-red-700 text-white px-8 py-5 border-b-8 border-red-950 text-xs hover:bg-red-600">ERASE</button>
+            <button id="spare-btn" class="btn bg-green-700 text-white px-8 py-5 border-b-8 border-green-950 text-xs hover:bg-green-600">SPARE</button>
+        </div>
     </div>
 
     <div id="game-over-screen" class="overlay screen-darken hidden">
@@ -204,9 +214,12 @@
     </div>
 
     <div id="victory-screen" class="overlay screen-darken hidden">
-        <h1 class="text-yellow-400 text-3xl mb-4 text-center">ANOMALY<br>CLEARED</h1>
-        <p class="text-white text-[10px] mb-10 opacity-70">SECTOR STABILIZED. WELL DONE.</p>
-        <button id="victory-btn" class="btn bg-yellow-600 text-white px-8 py-5 border-b-8 border-yellow-950 text-xs">REPLAY MISSION</button>
+        <h1 id="victory-title" class="text-3xl mb-4 text-center">ANOMALY<br>CLEARED</h1>
+        <p id="victory-desc" class="text-white text-[10px] mb-6 opacity-70">SECTOR STABILIZED. WELL DONE.</p>
+        
+        <div id="victory-badge" class="mb-10 text-yellow-400 text-xs border-2 border-yellow-400 p-3 bg-black"></div>
+        
+        <button id="victory-btn" class="btn bg-yellow-600 text-white px-8 py-5 border-b-8 border-yellow-950 hover:bg-yellow-500 text-xs">REPLAY MISSION</button>
     </div>
 
     <div id="mobile-controls">
@@ -220,14 +233,13 @@
 
 <script>
 /**
- * DUBTEX CORE ENGINE v2.1
- * Fixed initialization safety and enhanced boss mechanics.
+ * DUBTEX CORE ENGINE v3.5 (32-Bit Upgrade + Judgment Phase)
  */
 
 // --- GLOBAL CONSTANTS & STATE ---
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-const STATE = { MENU: 0, PLAYING: 1, CINEMATIC: 2, GAMEOVER: 3, VICTORY: 4 };
+const STATE = { MENU: 0, PLAYING: 1, CINEMATIC: 2, JUDGMENT: 3, GAMEOVER: 4, VICTORY: 5 };
 
 let gameState = STATE.MENU;
 let screenShake = 0;
@@ -237,7 +249,7 @@ let keys = { left: false, right: false, shoot: false };
 const WIDTH = canvas.width;
 const HEIGHT = canvas.height;
 
-// Global Game Objects (Null initially to prevent premature draw calls)
+// Global Game Objects
 let player = null;
 let boss = null;
 let bullets = [];
@@ -257,7 +269,8 @@ const lerp = (a, b, t) => a + (b - a) * t;
 
 class Particle {
     constructor(x, y, color, speed, size, life) {
-        this.x = x; this.y = y;
+        this.x = x; 
+        this.y = y;
         this.vx = (Math.random() - 0.5) * speed;
         this.vy = (Math.random() - 0.5) * speed;
         this.color = color;
@@ -265,11 +278,13 @@ class Particle {
         this.life = life;
         this.maxLife = life;
     }
+    
     update() {
         this.x += this.vx;
         this.y += this.vy;
         this.life--;
     }
+    
     draw(c) {
         c.fillStyle = this.color;
         c.globalAlpha = this.life / this.maxLife;
@@ -280,9 +295,14 @@ class Particle {
 
 class LaserWarning {
     constructor(x, y, angle, width, life) {
-        this.x = x; this.y = y; this.angle = angle; this.width = width;
-        this.life = life; this.maxLife = life;
+        this.x = x; 
+        this.y = y; 
+        this.angle = angle; 
+        this.width = width;
+        this.life = life; 
+        this.maxLife = life;
     }
+    
     draw(c) {
         c.save();
         c.translate(this.x, this.y);
@@ -302,8 +322,10 @@ class LaserWarning {
 
 class GasterEye {
     constructor(x, y, targetX, targetY) {
-        this.x = x; this.y = y;
-        this.tx = targetX; this.ty = targetY;
+        this.x = x; 
+        this.y = y;
+        this.tx = targetX; 
+        this.ty = targetY;
         this.angle = 0;
         this.state = 'spawning'; 
         this.timer = 50;
@@ -311,6 +333,7 @@ class GasterEye {
         this.radius = 12;
         this.active = true;
     }
+    
     update() {
         if (!player) return;
         
@@ -346,6 +369,7 @@ class GasterEye {
             if (this.radius < 1) this.active = false;
         }
     }
+    
     checkCollision() {
         if (!player || player.isDead || player.invuln > 0) return;
         let dx = player.x - this.x;
@@ -353,6 +377,7 @@ class GasterEye {
         let lx = Math.cos(this.angle);
         let ly = Math.sin(this.angle);
         let proj = dx * lx + dy * ly;
+        
         if (proj > 0) {
             let cx = this.x + lx * proj;
             let cy = this.y + ly * proj;
@@ -361,6 +386,7 @@ class GasterEye {
             }
         }
     }
+    
     draw(c) {
         c.save();
         c.translate(this.x, this.y);
@@ -381,15 +407,23 @@ class GasterEye {
         }
 
         c.rotate(this.angle);
-        c.fillStyle = '#f0f0f0';
+        // 32-bit chunky styling for the eye
+        c.fillStyle = '#cccccc';
         this.fillSquare(c, 0, 0, this.radius);
-        c.fillStyle = '#ff7700';
+        c.fillStyle = '#ffffff';
+        this.fillSquare(c, -2, -2, this.radius - 2);
+        
+        c.fillStyle = '#aa2200';
         this.fillSquare(c, 4, 0, this.radius/2);
+        c.fillStyle = '#ff7700';
+        this.fillSquare(c, 3, -1, (this.radius/2) - 1);
+        
         c.fillStyle = '#000';
         this.fillSquare(c, 6, 0, this.radius/5);
         
         c.restore();
     }
+    
     fillSquare(c, x, y, r) {
         c.fillRect(x - r, y - r, r*2, r*2);
     }
@@ -399,6 +433,7 @@ class Player {
     constructor() {
         this.reset();
     }
+    
     reset() {
         this.x = WIDTH / 2;
         this.y = HEIGHT - 120;
@@ -410,22 +445,25 @@ class Player {
         this.invuln = 0;
         this.isDead = false;
     }
+    
     update() {
         if (this.isDead) return;
         if (this.invuln > 0) this.invuln--;
 
+        // Momentum-style continuous movement
         if (keys.left) this.angle -= this.turnSpeed;
         if (keys.right) this.angle += this.turnSpeed;
 
         this.x += Math.cos(this.angle) * this.speed;
         this.y += Math.sin(this.angle) * this.speed;
 
-        // Boundaries
+        // Boundaries Wrap
         if (this.x < 0) this.x += WIDTH;
         if (this.x > WIDTH) this.x -= WIDTH;
         if (this.y < 0) this.y += HEIGHT;
         if (this.y > HEIGHT) this.y -= HEIGHT;
 
+        // Firing logic
         if (this.cooldown > 0) this.cooldown--;
         if (keys.shoot && this.cooldown <= 0) {
             this.shoot();
@@ -435,17 +473,20 @@ class Player {
             particles.push(new Particle(this.x, this.y, '#00ffff', 0.5, 2, 20));
         }
     }
+    
     shoot() {
         const off = PI/2;
         bullets.push({x: this.x + Math.cos(this.angle+off)*6, y: this.y + Math.sin(this.angle+off)*6, a: this.angle, v: 10, active: true});
         bullets.push({x: this.x + Math.cos(this.angle-off)*6, y: this.y + Math.sin(this.angle-off)*6, a: this.angle, v: 10, active: true});
         this.cooldown = 8;
     }
+    
     hit() {
         if (this.invuln > 0 || this.isDead) return;
         this.lives--;
         screenShake = 25;
         explode(this.x, this.y, 50, '#00ffff');
+        
         if (this.lives <= 0) {
             this.isDead = true;
             document.getElementById('death-stat').innerText = `CORE INTEGRITY: ${Math.ceil((boss.hp/boss.maxHp)*100)}%`;
@@ -454,24 +495,30 @@ class Player {
             this.invuln = 80;
         }
     }
+    
     draw(c) {
         if (this.isDead || (this.invuln > 0 && globalTime % 8 < 4)) return;
+        
         c.save();
         c.translate(this.x, this.y);
         c.rotate(this.angle);
         
-        // Wing silhouette
-        c.fillStyle = '#00ffff';
-        c.beginPath();
-        c.moveTo(10, 0);
-        c.lineTo(-8, -8);
-        c.lineTo(-4, 0);
-        c.lineTo(-8, 8);
-        c.fill();
+        // 32-bit chunky pixel ship (facing right at angle 0, up at -PI/2)
+        c.fillStyle = '#0055aa'; 
+        c.fillRect(-10, -8, 20, 16); // main body shadow
         
-        // Cockpit
-        c.fillStyle = '#fff';
-        c.fillRect(0, -2, 4, 4);
+        c.fillStyle = '#00aaff'; // Wings
+        c.fillRect(-6, -12, 8, 24);
+        
+        c.fillStyle = '#00ffff'; // Main fuselage
+        c.fillRect(-8, -4, 18, 8);
+        
+        c.fillStyle = '#ffffff'; // Cockpit
+        c.fillRect(2, -2, 4, 4);
+        
+        c.fillStyle = '#ff7700'; // Thruster flame
+        if (globalTime % 4 < 2) c.fillRect(-14, -3, 6, 6);
+        
         c.restore();
     }
 }
@@ -490,12 +537,14 @@ class Boss {
         this.stateTimer = 120;
         this.isHit = 0;
         this.eyeAngle = 0;
+        this.laserSide = 0;
     }
+    
     update() {
         this.time++;
         if (this.isHit > 0) this.isHit--;
         
-        // Approach
+        // Approach logic
         this.y = lerp(this.y, this.ty, 0.04);
 
         let hpPct = this.hp / this.maxHp;
@@ -522,9 +571,26 @@ class Boss {
         this.eyeAngle += 0.03;
 
         this.stateTimer--;
+        
+        // Half Screen Laser specific logic
+        if (this.state === 'half_laser') {
+            if (this.stateTimer === 40) {
+                screenShake = 15;
+            }
+            if (this.stateTimer < 40 && this.stateTimer > 0) {
+                if (player && !player.isDead && player.invuln <= 0) {
+                    let inDangerZone = (this.laserSide === 0 && player.x < WIDTH/2) || 
+                                       (this.laserSide === 1 && player.x >= WIDTH/2);
+                    if (inDangerZone) {
+                        player.hit();
+                    }
+                }
+            }
+        }
+        
         if (this.stateTimer <= 0) this.pickAttack();
 
-        // Attacks
+        // Standard Attacks
         if (this.state === 'lasers') {
             if (this.stateTimer % (this.phase >= 3 ? 15 : 25) === 0) {
                 blasters.push(new GasterEye(this.x, this.y, rand(40, WIDTH-40), rand(60, 240)));
@@ -539,7 +605,6 @@ class Boss {
             }
         } else if (this.state === 'cross') {
             if (this.stateTimer === 60) {
-                // Predictive cross attack
                 blasters.push(new GasterEye(0, player.y, 40, player.y));
                 blasters.push(new GasterEye(WIDTH, player.y, WIDTH-40, player.y));
             }
@@ -567,10 +632,16 @@ class Boss {
     pickAttack() {
         let pool = ['idle', 'lasers', 'spiral'];
         if (this.phase >= 2) pool.push('cross');
-        if (this.phase >= 3) pool.push('lasers', 'spiral'); // Weighted
+        if (this.phase >= 3) pool.push('lasers', 'spiral', 'half_laser'); 
         
         this.state = pool[Math.floor(Math.random() * pool.length)];
-        this.stateTimer = this.phase === 4 ? 80 : 140;
+        
+        if (this.state === 'half_laser') {
+            this.stateTimer = 220; // 180 frames (3s) warning + 40 frames firing
+            this.laserSide = Math.random() < 0.5 ? 0 : 1; // 0 = left, 1 = right
+        } else {
+            this.stateTimer = this.phase === 4 ? 80 : 140;
+        }
     }
 
     hit(d) {
@@ -578,10 +649,35 @@ class Boss {
         this.hp -= d;
         this.isHit = 4;
         document.getElementById('boss-health-bar').style.width = (this.hp / this.maxHp * 100) + '%';
+        
         if (this.hp <= 0) {
-            gameState = STATE.VICTORY;
+            this.hp = 0;
+            gameState = STATE.JUDGMENT;
             showUI();
-            explode(this.x, this.y, 200, '#ff7700');
+            
+            // Clear bullets to ensure safe choice making
+            bullets = [];
+            enemyBullets = [];
+            blasters = [];
+            warnings = [];
+        }
+    }
+
+    drawPixelCircle(c, x, y, r, color, outlineColor) {
+        const step = 4;
+        c.fillStyle = color;
+        for(let i = -r; i <= r; i += step) {
+            for(let j = -r; j <= r; j += step) {
+                if(i*i + j*j <= r*r) {
+                    if (outlineColor && i*i + j*j > (r-step)*(r-step)) {
+                        c.fillStyle = outlineColor;
+                        c.fillRect(x + i, y + j, step, step);
+                        c.fillStyle = color; 
+                    } else {
+                        c.fillRect(x + i, y + j, step, step);
+                    }
+                }
+            }
         }
     }
 
@@ -589,7 +685,6 @@ class Boss {
         c.save();
         c.translate(this.x, this.y);
 
-        // Visual glitch effect if hit
         if (this.isHit > 0) {
             c.translate(rand(-3, 3), 0);
         }
@@ -605,9 +700,9 @@ class Boss {
             }
         }
 
-        // Main Hull
-        c.fillStyle = this.isHit > 0 ? '#fff' : '#d0d0d0';
-        this.drawPixelCircle(c, 0, 0, this.radius);
+        // Main Hull (32-bit outline styling)
+        let baseColor = this.isHit > 0 ? '#fff' : '#d0d0d0';
+        this.drawPixelCircle(c, 0, 0, this.radius, baseColor, '#555555');
 
         // Core Eye Logic
         let pAng = player ? Math.atan2(player.y - this.y, player.x - this.x) : 0;
@@ -615,12 +710,10 @@ class Boss {
         let lookY = Math.sin(pAng) * 15;
 
         // Iris
-        c.fillStyle = '#ff7700';
-        this.drawPixelCircle(c, lookX, lookY, this.radius * 0.6);
+        this.drawPixelCircle(c, lookX, lookY, this.radius * 0.6, '#ff7700', '#aa2200');
         
         // Pupil
-        c.fillStyle = '#000';
-        this.drawPixelCircle(c, lookX * 1.3, lookY * 1.3, this.radius * 0.3);
+        this.drawPixelCircle(c, lookX * 1.3, lookY * 1.3, this.radius * 0.3, '#000000', null);
 
         // Sub-eyes (Phase 3+)
         if (this.phase >= 3) {
@@ -629,25 +722,13 @@ class Boss {
                 let dist = this.radius + 30 + Math.sin(this.time * 0.05 + i) * 10;
                 let ex = Math.cos(a) * dist;
                 let ey = Math.sin(a) * dist;
-                c.fillStyle = '#fff';
-                this.drawPixelCircle(c, ex, ey, 8);
-                c.fillStyle = '#ff7700';
-                this.drawPixelCircle(c, ex, ey, 4);
+                
+                this.drawPixelCircle(c, ex, ey, 8, '#ffffff', '#555555');
+                this.drawPixelCircle(c, ex, ey, 4, '#ff7700', null);
             }
         }
 
         c.restore();
-    }
-
-    drawPixelCircle(c, x, y, r) {
-        const step = 4;
-        for(let i = -r; i <= r; i += step) {
-            for(let j = -r; j <= r; j += step) {
-                if(i*i + j*j <= r*r) {
-                    c.fillRect(x + i, y + j, step, step);
-                }
-            }
-        }
     }
 }
 
@@ -660,7 +741,7 @@ function explode(x, y, n, col) {
 }
 
 function update() {
-    if (gameState === STATE.MENU) return;
+    if (gameState === STATE.MENU || gameState === STATE.JUDGMENT) return;
     
     globalTime++;
     if (screenShake > 0) screenShake *= 0.9;
@@ -695,7 +776,8 @@ function update() {
 
     // Boss Projectiles
     enemyBullets.forEach(b => {
-        b.x += b.vx; b.y += b.vy;
+        b.x += b.vx; 
+        b.y += b.vy;
         if (player && !player.isDead && dist(b.x, b.y, player.x, player.y) < 12) {
             player.hit();
             b.active = false;
@@ -733,6 +815,28 @@ function draw() {
     blasters.forEach(b => b.draw(ctx));
     warnings.forEach(w => w.draw(ctx));
     
+    // Draw Half-Screen Laser (Behind player and bullets)
+    if (boss && boss.state === 'half_laser') {
+        let lx = boss.laserSide === 0 ? 0 : WIDTH/2;
+        let lw = WIDTH/2;
+        
+        if (boss.stateTimer > 40) {
+            // Warning phase (3 seconds)
+            ctx.fillStyle = `rgba(255, 60, 0, ${0.15 + Math.sin(globalTime*0.3)*0.1})`;
+            ctx.fillRect(lx, 0, lw, HEIGHT);
+            
+            // Caution line indicator
+            ctx.fillStyle = `rgba(255, 255, 255, 0.5)`;
+            ctx.fillRect(boss.laserSide === 0 ? lw - 2 : lx, 0, 2, HEIGHT);
+        } else if (boss.stateTimer > 0) {
+            // Firing phase
+            ctx.fillStyle = '#ff7700';
+            ctx.fillRect(lx, 0, lw, HEIGHT);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(lx + lw/4, 0, lw/2, HEIGHT);
+        }
+    }
+    
     ctx.fillStyle = '#00ffff';
     bullets.forEach(b => ctx.fillRect(b.x-2, b.y-2, 4, 4));
 
@@ -757,7 +861,7 @@ function draw() {
 
     ctx.restore();
     
-    // CRT Scanlines effect (Simplified)
+    // CRT Scanlines effect
     if (globalTime % 4 < 2) {
         ctx.fillStyle = 'rgba(18, 16, 16, 0.1)';
         for(let i=0; i<HEIGHT; i+=4) ctx.fillRect(0, i, WIDTH, 1);
@@ -778,13 +882,35 @@ function loop() {
 
 function showUI() {
     document.getElementById('start-screen').classList.toggle('hidden', gameState !== STATE.MENU);
+    document.getElementById('judgment-screen').classList.toggle('hidden', gameState !== STATE.JUDGMENT);
     document.getElementById('game-over-screen').classList.toggle('hidden', gameState !== STATE.GAMEOVER);
     document.getElementById('victory-screen').classList.toggle('hidden', gameState !== STATE.VICTORY);
     document.getElementById('boss-ui').style.display = (gameState === STATE.PLAYING || gameState === STATE.CINEMATIC) ? 'flex' : 'none';
 }
 
+function resolveChoice(type) {
+    gameState = STATE.VICTORY;
+    const title = document.getElementById('victory-title');
+    const desc = document.getElementById('victory-desc');
+    const badge = document.getElementById('victory-badge');
+    
+    if (type === 'kill') {
+        title.innerText = "GENOCIDE ROUTE";
+        title.className = "text-red-600 text-3xl mb-4 text-center";
+        desc.innerText = "You erased the core. Signal completely lost.";
+        badge.innerText = "🏆 BADGE: THE ERASER";
+        badge.className = "mb-10 text-red-500 text-xs border-2 border-red-500 p-3 bg-black";
+    } else {
+        title.innerText = "PACIFIST ROUTE";
+        title.className = "text-green-500 text-3xl mb-4 text-center";
+        desc.innerText = "You showed mercy. The anomaly stabilizes.";
+        badge.innerText = "🏆 BADGE: TRUE MERCY";
+        badge.className = "mb-10 text-green-500 text-xs border-2 border-green-500 p-3 bg-black";
+    }
+    showUI();
+}
+
 function init() {
-    // Reset collections
     bullets = [];
     enemyBullets = [];
     blasters = [];
@@ -792,11 +918,9 @@ function init() {
     warnings = [];
     stars = [];
     
-    // Initialize objects
     player = new Player();
     boss = new Boss();
     
-    // UI reset
     document.getElementById('boss-health-bar').style.width = '100%';
     
     gameState = STATE.PLAYING;
@@ -825,6 +949,7 @@ const setupTouch = (id, k) => {
     el.addEventListener('mousedown', start);
     el.addEventListener('mouseup', end);
 };
+
 setupTouch('btn-left', 'left');
 setupTouch('btn-right', 'right');
 setupTouch('btn-shoot', 'shoot');
@@ -833,7 +958,11 @@ document.getElementById('start-btn').onclick = init;
 document.getElementById('restart-btn').onclick = init;
 document.getElementById('victory-btn').onclick = init;
 
-// Start loop immediately (it handles null safety internally)
+// Judgment Choice Buttons
+document.getElementById('kill-btn').onclick = () => resolveChoice('kill');
+document.getElementById('spare-btn').onclick = () => resolveChoice('spare');
+
+// Start loop
 loop();
 
 </script>
