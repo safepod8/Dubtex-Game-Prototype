@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>DUBTEX</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        :root {
+            --orange-primary: #ff7700;
+            --blue-ui: #0055cc;
+            --crt-green: #00ff41;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #020205;
+            overflow: hidden;
+            font-family: 'Press Start 2P', cursive;
+            touch-action: none;
+            user-select: none;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle, #101025 0%, #020205 100%);
+        }
+
+        canvas {
+            image-rendering: pixelated;
+            box-shadow: 0 0 50px rgba(255, 85, 0, 0.15);
+            background-color: #000;
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            border: 2px solid #1a1a1a;
+        }
+
+        /* UI Overlays */
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            pointer-events: none;
+            z-index: 50;
+        }
+
+        .screen-darken {
+            background: rgba(0, 0, 0, 0.85);
+            pointer-events: auto;
+        }
+
+        .btn {
+            pointer-events: auto;
+            font-family: 'Press Start 2P', cursive;
+            transition: all 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            cursor: pointer;
+            text-transform: uppercase;
+        }
+        .btn:hover {
+            transform: scale(1.05);
+            filter: brightness(1.2);
+        }
+        .btn:active {
+            transform: scale(0.95);
+        }
+
+        /* Mobile Controls */
+        #mobile-controls {
+            position: absolute;
+            bottom: 40px;
+            left: 0;
+            width: 100%;
+            display: none;
+            justify-content: space-between;
+            padding: 0 30px;
+            box-sizing: border-box;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        .pixel-btn {
+            width: 70px;
+            height: 70px;
+            background: #0055cc;
+            border: 4px solid #002266;
+            box-shadow: 
+                inset -6px -6px 0px rgba(0,0,0,0.4), 
+                inset 6px 6px 0px rgba(150,200,255,0.4),
+                0 6px 0 #001133;
+            color: white;
+            font-size: 14px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            pointer-events: auto;
+            position: relative;
+        }
+
+        .pixel-btn:active {
+            margin-top: 6px;
+            box-shadow: 
+                inset 6px 6px 0px rgba(0,0,0,0.4), 
+                inset -6px -6px 0px rgba(150,200,255,0.4);
+            background: #0044aa;
+        }
+
+        #boss-ui {
+            position: absolute;
+            top: 30px;
+            width: 100%;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            z-index: 60;
+        }
+
+        .hp-container {
+            width: 85%;
+            max-width: 500px;
+            height: 20px;
+            background: #111;
+            border: 3px solid #333;
+            position: relative;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+
+        .hp-fill {
+            height: 100%;
+            background: linear-gradient(to right, #ff4400, #ff9900);
+            width: 100%;
+            transition: width 0.3s cubic-bezier(0.2, 0, 0, 1);
+        }
+
+        .hidden { display: none !important; }
+
+        @keyframes shake {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            10% { transform: translate(-1px, -2px) rotate(-1deg); }
+            20% { transform: translate(-3px, 0px) rotate(1deg); }
+            30% { transform: translate(3px, 2px) rotate(0deg); }
+            40% { transform: translate(1px, -1px) rotate(1deg); }
+            50% { transform: translate(-1px, 2px) rotate(-1deg); }
+            60% { transform: translate(-3px, 1px) rotate(0deg); }
+            70% { transform: translate(3px, 1px) rotate(-1deg); }
+            80% { transform: translate(-1px, -1px) rotate(1deg); }
+            90% { transform: translate(1px, 2px) rotate(0deg); }
+            100% { transform: translate(1px, -2px) rotate(-1deg); }
+        }
+
+        .shake-text {
+            animation: shake 0.5s infinite;
+            color: #ff7700;
+        }
+
+        @media (max-width: 768px) {
+            #mobile-controls { display: flex; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas" width="360" height="640"></canvas>
+
+    <div id="boss-ui">
+        <div class="text-[8px] text-orange-500 mb-2 uppercase tracking-[0.2em] font-bold drop-shadow-md">DUBTEX: SYSTEM ANOMALY</div>
+        <div class="hp-container">
+            <div id="boss-health-bar" class="hp-fill"></div>
+        </div>
+    </div>
+
+    <div id="start-screen" class="overlay screen-darken">
+        <h1 class="text-orange-600 text-5xl mb-6 text-center leading-tight drop-shadow-[0_6px_0px_#440000]">DUBTEX</h1>
+        <p class="text-white text-[10px] mb-10 text-center max-w-[300px] leading-loose opacity-80">
+            [OBJECTIVES]<br>
+            DESTROY THE WATCHER.<br>
+            EVADE THE LAZERS.<br>
+            MOVEMENT IS KEY.
+        </p>
+        <button id="start-btn" class="btn bg-orange-700 text-white px-10 py-6 border-b-8 border-orange-950 hover:bg-orange-600 text-xs tracking-widest">START COMBAT</button>
+    </div>
+
+    <div id="game-over-screen" class="overlay screen-darken hidden">
+        <h1 class="text-red-600 text-3xl mb-4 shake-text">SIGNAL LOST</h1>
+        <p class="text-white text-[10px] mb-8" id="death-stat">CORE INTEGRITY: 100%</p>
+        <button id="restart-btn" class="btn bg-blue-700 text-white px-8 py-5 border-b-8 border-blue-950 hover:bg-blue-600 text-xs">REBOOT SYSTEM</button>
+    </div>
+
+    <div id="victory-screen" class="overlay screen-darken hidden">
+        <h1 class="text-yellow-400 text-3xl mb-4 text-center">ANOMALY<br>CLEARED</h1>
+        <p class="text-white text-[10px] mb-10 opacity-70">SECTOR STABILIZED. WELL DONE.</p>
+        <button id="victory-btn" class="btn bg-yellow-600 text-white px-8 py-5 border-b-8 border-yellow-950 text-xs">REPLAY MISSION</button>
+    </div>
+
+    <div id="mobile-controls">
+        <div class="flex gap-4">
+            <div id="btn-left" class="pixel-btn">LEFT</div>
+            <div id="btn-right" class="pixel-btn">RIGHT</div>
+        </div>
+        <div id="btn-shoot" class="pixel-btn">FIRE</div>
+    </div>
+</div>
+
+<script>
+/**
+ * DUBTEX CORE ENGINE v2.1
+ * Fixed initialization safety and enhanced boss mechanics.
+ */
+
+// --- GLOBAL CONSTANTS & STATE ---
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const STATE = { MENU: 0, PLAYING: 1, CINEMATIC: 2, GAMEOVER: 3, VICTORY: 4 };
+
+let gameState = STATE.MENU;
+let screenShake = 0;
+let globalTime = 0;
+let keys = { left: false, right: false, shoot: false };
+
+const WIDTH = canvas.width;
+const HEIGHT = canvas.height;
+
+// Global Game Objects (Null initially to prevent premature draw calls)
+let player = null;
+let boss = null;
+let bullets = [];
+let enemyBullets = [];
+let particles = [];
+let blasters = [];
+let warnings = [];
+let stars = [];
+
+// --- UTILITIES ---
+const PI = Math.PI;
+const rand = (min, max) => Math.random() * (max - min) + min;
+const dist = (x1, y1, x2, y2) => Math.hypot(x2 - x1, y2 - y1);
+const lerp = (a, b, t) => a + (b - a) * t;
+
+// --- CLASSES ---
+
+class Particle {
+    constructor(x, y, color, speed, size, life) {
+        this.x = x; this.y = y;
+        this.vx = (Math.random() - 0.5) * speed;
+        this.vy = (Math.random() - 0.5) * speed;
+        this.color = color;
+        this.size = size;
+        this.life = life;
+        this.maxLife = life;
+    }
+    update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.life--;
+    }
+    draw(c) {
+        c.fillStyle = this.color;
+        c.globalAlpha = this.life / this.maxLife;
+        c.fillRect(Math.floor(this.x), Math.floor(this.y), this.size, this.size);
+        c.globalAlpha = 1;
+    }
+}
+
+class LaserWarning {
+    constructor(x, y, angle, width, life) {
+        this.x = x; this.y = y; this.angle = angle; this.width = width;
+        this.life = life; this.maxLife = life;
+    }
+    draw(c) {
+        c.save();
+        c.translate(this.x, this.y);
+        c.rotate(this.angle);
+        let alpha = (Math.sin(globalTime * 0.3) * 0.2 + 0.3) * (this.life / this.maxLife);
+        c.fillStyle = `rgba(255, 60, 0, ${alpha})`;
+        c.fillRect(0, -this.width/2, 1200, this.width);
+        
+        // Edge markers
+        c.fillStyle = `rgba(255, 255, 255, ${alpha * 0.5})`;
+        c.fillRect(0, -this.width/2, 1200, 1);
+        c.fillRect(0, this.width/2 - 1, 1200, 1);
+        
+        c.restore();
+    }
+}
+
+class GasterEye {
+    constructor(x, y, targetX, targetY) {
+        this.x = x; this.y = y;
+        this.tx = targetX; this.ty = targetY;
+        this.angle = 0;
+        this.state = 'spawning'; 
+        this.timer = 50;
+        this.laserWidth = 0;
+        this.radius = 12;
+        this.active = true;
+    }
+    update() {
+        if (!player) return;
+        
+        if (this.state === 'spawning') {
+            this.x = lerp(this.x, this.tx, 0.12);
+            this.y = lerp(this.y, this.ty, 0.12);
+            this.timer--;
+            if (this.timer <= 0) {
+                this.state = 'aiming';
+                this.timer = 40;
+            }
+        } else if (this.state === 'aiming') {
+            // Lock onto player position
+            let targetAngle = Math.atan2(player.y - this.y, player.x - this.x);
+            this.angle = targetAngle;
+            
+            this.timer--;
+            if (this.timer === 10) {
+                warnings.push(new LaserWarning(this.x, this.y, this.angle, 30, 15));
+            }
+            if (this.timer <= 0) {
+                this.state = 'firing';
+                this.timer = 45;
+                screenShake = 8;
+            }
+        } else if (this.state === 'firing') {
+            this.laserWidth = Math.sin((this.timer / 45) * PI) * 45;
+            this.checkCollision();
+            this.timer--;
+            if (this.timer <= 0) this.state = 'dying';
+        } else if (this.state === 'dying') {
+            this.radius *= 0.85;
+            if (this.radius < 1) this.active = false;
+        }
+    }
+    checkCollision() {
+        if (!player || player.isDead || player.invuln > 0) return;
+        let dx = player.x - this.x;
+        let dy = player.y - this.y;
+        let lx = Math.cos(this.angle);
+        let ly = Math.sin(this.angle);
+        let proj = dx * lx + dy * ly;
+        if (proj > 0) {
+            let cx = this.x + lx * proj;
+            let cy = this.y + ly * proj;
+            if (dist(player.x, player.y, cx, cy) < this.laserWidth / 1.6) {
+                player.hit();
+            }
+        }
+    }
+    draw(c) {
+        c.save();
+        c.translate(this.x, this.y);
+        
+        if (this.state === 'firing') {
+            c.save();
+            c.rotate(this.angle);
+            // Core Beam
+            c.fillStyle = '#ff7700';
+            c.fillRect(0, -this.laserWidth/2, 1200, this.laserWidth);
+            c.fillStyle = '#ffffff';
+            c.fillRect(0, -this.laserWidth/4, 1200, this.laserWidth/2);
+            // Particles on fire
+            if (globalTime % 2 === 0) {
+                explode(20, 0, 1, '#fff');
+            }
+            c.restore();
+        }
+
+        c.rotate(this.angle);
+        c.fillStyle = '#f0f0f0';
+        this.fillSquare(c, 0, 0, this.radius);
+        c.fillStyle = '#ff7700';
+        this.fillSquare(c, 4, 0, this.radius/2);
+        c.fillStyle = '#000';
+        this.fillSquare(c, 6, 0, this.radius/5);
+        
+        c.restore();
+    }
+    fillSquare(c, x, y, r) {
+        c.fillRect(x - r, y - r, r*2, r*2);
+    }
+}
+
+class Player {
+    constructor() {
+        this.reset();
+    }
+    reset() {
+        this.x = WIDTH / 2;
+        this.y = HEIGHT - 120;
+        this.angle = -PI/2;
+        this.speed = 3.5;
+        this.turnSpeed = 0.1;
+        this.lives = 3;
+        this.cooldown = 0;
+        this.invuln = 0;
+        this.isDead = false;
+    }
+    update() {
+        if (this.isDead) return;
+        if (this.invuln > 0) this.invuln--;
+
+        if (keys.left) this.angle -= this.turnSpeed;
+        if (keys.right) this.angle += this.turnSpeed;
+
+        this.x += Math.cos(this.angle) * this.speed;
+        this.y += Math.sin(this.angle) * this.speed;
+
+        // Boundaries
+        if (this.x < 0) this.x += WIDTH;
+        if (this.x > WIDTH) this.x -= WIDTH;
+        if (this.y < 0) this.y += HEIGHT;
+        if (this.y > HEIGHT) this.y -= HEIGHT;
+
+        if (this.cooldown > 0) this.cooldown--;
+        if (keys.shoot && this.cooldown <= 0) {
+            this.shoot();
+        }
+
+        if (globalTime % 3 === 0) {
+            particles.push(new Particle(this.x, this.y, '#00ffff', 0.5, 2, 20));
+        }
+    }
+    shoot() {
+        const off = PI/2;
+        bullets.push({x: this.x + Math.cos(this.angle+off)*6, y: this.y + Math.sin(this.angle+off)*6, a: this.angle, v: 10, active: true});
+        bullets.push({x: this.x + Math.cos(this.angle-off)*6, y: this.y + Math.sin(this.angle-off)*6, a: this.angle, v: 10, active: true});
+        this.cooldown = 8;
+    }
+    hit() {
+        if (this.invuln > 0 || this.isDead) return;
+        this.lives--;
+        screenShake = 25;
+        explode(this.x, this.y, 50, '#00ffff');
+        if (this.lives <= 0) {
+            this.isDead = true;
+            document.getElementById('death-stat').innerText = `CORE INTEGRITY: ${Math.ceil((boss.hp/boss.maxHp)*100)}%`;
+            setTimeout(() => { gameState = STATE.GAMEOVER; showUI(); }, 1200);
+        } else {
+            this.invuln = 80;
+        }
+    }
+    draw(c) {
+        if (this.isDead || (this.invuln > 0 && globalTime % 8 < 4)) return;
+        c.save();
+        c.translate(this.x, this.y);
+        c.rotate(this.angle);
+        
+        // Wing silhouette
+        c.fillStyle = '#00ffff';
+        c.beginPath();
+        c.moveTo(10, 0);
+        c.lineTo(-8, -8);
+        c.lineTo(-4, 0);
+        c.lineTo(-8, 8);
+        c.fill();
+        
+        // Cockpit
+        c.fillStyle = '#fff';
+        c.fillRect(0, -2, 4, 4);
+        c.restore();
+    }
+}
+
+class Boss {
+    constructor() {
+        this.x = WIDTH / 2;
+        this.y = -150;
+        this.ty = 160;
+        this.hp = 4000;
+        this.maxHp = 4000;
+        this.radius = 50;
+        this.phase = 1;
+        this.time = 0;
+        this.state = 'idle';
+        this.stateTimer = 120;
+        this.isHit = 0;
+        this.eyeAngle = 0;
+    }
+    update() {
+        this.time++;
+        if (this.isHit > 0) this.isHit--;
+        
+        // Approach
+        this.y = lerp(this.y, this.ty, 0.04);
+
+        let hpPct = this.hp / this.maxHp;
+        
+        // Phase progression
+        if (hpPct < 0.15 && this.phase < 4) {
+            this.phase = 4;
+            this.ty = 220;
+            this.radius = 65;
+        } else if (hpPct < 0.4 && this.phase < 3) {
+            this.triggerPhase3();
+        } else if (hpPct < 0.7 && this.phase === 1) {
+            this.phase = 2;
+            this.radius = 55;
+        }
+
+        if (gameState === STATE.CINEMATIC) {
+            this.updateCinematic();
+            return;
+        }
+
+        // Float movement
+        this.x = WIDTH/2 + Math.sin(this.time * 0.025) * 80;
+        this.eyeAngle += 0.03;
+
+        this.stateTimer--;
+        if (this.stateTimer <= 0) this.pickAttack();
+
+        // Attacks
+        if (this.state === 'lasers') {
+            if (this.stateTimer % (this.phase >= 3 ? 15 : 25) === 0) {
+                blasters.push(new GasterEye(this.x, this.y, rand(40, WIDTH-40), rand(60, 240)));
+            }
+        } else if (this.state === 'spiral') {
+            if (this.time % (this.phase === 4 ? 3 : 6) === 0) {
+                let count = this.phase >= 2 ? 2 : 1;
+                for(let i=0; i<count; i++) {
+                    let a = this.time * 0.12 + (i * PI);
+                    enemyBullets.push({x: this.x, y: this.y, vx: Math.cos(a)*4.5, vy: Math.sin(a)*4.5, active: true});
+                }
+            }
+        } else if (this.state === 'cross') {
+            if (this.stateTimer === 60) {
+                // Predictive cross attack
+                blasters.push(new GasterEye(0, player.y, 40, player.y));
+                blasters.push(new GasterEye(WIDTH, player.y, WIDTH-40, player.y));
+            }
+        }
+    }
+
+    triggerPhase3() {
+        this.phase = 3;
+        gameState = STATE.CINEMATIC;
+        this.stateTimer = 160;
+    }
+
+    updateCinematic() {
+        this.stateTimer--;
+        screenShake = 4;
+        if (this.stateTimer % 4 === 0) {
+            explode(this.x + rand(-60, 60), this.y + rand(-60, 60), 4, '#ffaa00');
+        }
+        if (this.stateTimer <= 0) {
+            gameState = STATE.PLAYING;
+            this.pickAttack();
+        }
+    }
+
+    pickAttack() {
+        let pool = ['idle', 'lasers', 'spiral'];
+        if (this.phase >= 2) pool.push('cross');
+        if (this.phase >= 3) pool.push('lasers', 'spiral'); // Weighted
+        
+        this.state = pool[Math.floor(Math.random() * pool.length)];
+        this.stateTimer = this.phase === 4 ? 80 : 140;
+    }
+
+    hit(d) {
+        if (gameState !== STATE.PLAYING) return;
+        this.hp -= d;
+        this.isHit = 4;
+        document.getElementById('boss-health-bar').style.width = (this.hp / this.maxHp * 100) + '%';
+        if (this.hp <= 0) {
+            gameState = STATE.VICTORY;
+            showUI();
+            explode(this.x, this.y, 200, '#ff7700');
+        }
+    }
+
+    draw(c) {
+        c.save();
+        c.translate(this.x, this.y);
+
+        // Visual glitch effect if hit
+        if (this.isHit > 0) {
+            c.translate(rand(-3, 3), 0);
+        }
+
+        // External Rotating Orbs
+        if (this.phase >= 2) {
+            for(let i=0; i<4; i++) {
+                let rot = this.time * 0.05 + (i * PI/2);
+                let ox = Math.cos(rot) * (this.radius + 20);
+                let oy = Math.sin(rot) * (this.radius + 20);
+                c.fillStyle = '#ff4400';
+                c.fillRect(ox-4, oy-4, 8, 8);
+            }
+        }
+
+        // Main Hull
+        c.fillStyle = this.isHit > 0 ? '#fff' : '#d0d0d0';
+        this.drawPixelCircle(c, 0, 0, this.radius);
+
+        // Core Eye Logic
+        let pAng = player ? Math.atan2(player.y - this.y, player.x - this.x) : 0;
+        let lookX = Math.cos(pAng) * 15;
+        let lookY = Math.sin(pAng) * 15;
+
+        // Iris
+        c.fillStyle = '#ff7700';
+        this.drawPixelCircle(c, lookX, lookY, this.radius * 0.6);
+        
+        // Pupil
+        c.fillStyle = '#000';
+        this.drawPixelCircle(c, lookX * 1.3, lookY * 1.3, this.radius * 0.3);
+
+        // Sub-eyes (Phase 3+)
+        if (this.phase >= 3) {
+            for (let i = 0; i < 6; i++) {
+                let a = this.eyeAngle + (PI*2/6)*i;
+                let dist = this.radius + 30 + Math.sin(this.time * 0.05 + i) * 10;
+                let ex = Math.cos(a) * dist;
+                let ey = Math.sin(a) * dist;
+                c.fillStyle = '#fff';
+                this.drawPixelCircle(c, ex, ey, 8);
+                c.fillStyle = '#ff7700';
+                this.drawPixelCircle(c, ex, ey, 4);
+            }
+        }
+
+        c.restore();
+    }
+
+    drawPixelCircle(c, x, y, r) {
+        const step = 4;
+        for(let i = -r; i <= r; i += step) {
+            for(let j = -r; j <= r; j += step) {
+                if(i*i + j*j <= r*r) {
+                    c.fillRect(x + i, y + j, step, step);
+                }
+            }
+        }
+    }
+}
+
+// --- ENGINE LOGIC ---
+
+function explode(x, y, n, col) {
+    for(let i=0; i<n; i++) {
+        particles.push(new Particle(x, y, col, rand(1, 8), rand(2, 6), rand(20, 60)));
+    }
+}
+
+function update() {
+    if (gameState === STATE.MENU) return;
+    
+    globalTime++;
+    if (screenShake > 0) screenShake *= 0.9;
+
+    // Stars
+    if (stars.length < 100) {
+        stars.push({x: rand(0, WIDTH), y: rand(-HEIGHT, 0), s: rand(1, 5)});
+    }
+    stars.forEach(s => {
+        s.y += s.s;
+        if (s.y > HEIGHT) {
+            s.y = -10;
+            s.x = rand(0, WIDTH);
+        }
+    });
+
+    if (player) player.update();
+    if (boss) boss.update();
+
+    // Player Projectiles
+    bullets.forEach(b => {
+        b.x += Math.cos(b.a) * b.v;
+        b.y += Math.sin(b.a) * b.v;
+        if (boss && dist(b.x, b.y, boss.x, boss.y) < boss.radius + 5) {
+            boss.hit(20);
+            b.active = false;
+            explode(b.x, b.y, 3, '#fff');
+        }
+        if (b.x < -20 || b.x > WIDTH+20 || b.y < -20 || b.y > HEIGHT+20) b.active = false;
+    });
+    bullets = bullets.filter(b => b.active);
+
+    // Boss Projectiles
+    enemyBullets.forEach(b => {
+        b.x += b.vx; b.y += b.vy;
+        if (player && !player.isDead && dist(b.x, b.y, player.x, player.y) < 12) {
+            player.hit();
+            b.active = false;
+        }
+        if (b.x < -50 || b.x > WIDTH+50 || b.y < -50 || b.y > HEIGHT+50) b.active = false;
+    });
+    enemyBullets = enemyBullets.filter(b => b.active);
+
+    // Laser Entities
+    blasters.forEach(b => b.update());
+    blasters = blasters.filter(b => b.active);
+
+    // Warnings & Particles
+    warnings.forEach(w => w.life--);
+    warnings = warnings.filter(w => w.life > 0);
+
+    particles.forEach(p => p.update());
+    particles = particles.filter(p => p.life > 0);
+}
+
+function draw() {
+    ctx.clearRect(0, 0, WIDTH, HEIGHT);
+    
+    ctx.save();
+    if (screenShake > 1) {
+        ctx.translate(rand(-screenShake, screenShake), rand(-screenShake, screenShake));
+    }
+
+    // BG Space
+    ctx.fillStyle = '#0a0a1a';
+    stars.forEach(s => ctx.fillRect(s.x, s.y, 2, 2));
+
+    // Draw order
+    if (boss) boss.draw(ctx);
+    blasters.forEach(b => b.draw(ctx));
+    warnings.forEach(w => w.draw(ctx));
+    
+    ctx.fillStyle = '#00ffff';
+    bullets.forEach(b => ctx.fillRect(b.x-2, b.y-2, 4, 4));
+
+    ctx.fillStyle = '#ff7700';
+    enemyBullets.forEach(b => ctx.fillRect(b.x-3, b.y-3, 6, 6));
+
+    particles.forEach(p => p.draw(ctx));
+    if (player) player.draw(ctx);
+
+    // Cinematic Text Overlay
+    if (gameState === STATE.CINEMATIC) {
+        ctx.fillStyle = 'rgba(255, 100, 0, 0.2)';
+        ctx.fillRect(0, HEIGHT/2 - 60, WIDTH, 120);
+        
+        ctx.fillStyle = '#ff7700';
+        ctx.textAlign = 'center';
+        ctx.font = '12px "Press Start 2P"';
+        let shakeX = (Math.random()-0.5)*6;
+        ctx.fillText("UPGRADING THREAT LEVEL", WIDTH/2 + shakeX, HEIGHT/2 - 10);
+        ctx.fillText("EVOLUTION COMPLETE", WIDTH/2 - shakeX, HEIGHT/2 + 20);
+    }
+
+    ctx.restore();
+    
+    // CRT Scanlines effect (Simplified)
+    if (globalTime % 4 < 2) {
+        ctx.fillStyle = 'rgba(18, 16, 16, 0.1)';
+        for(let i=0; i<HEIGHT; i+=4) ctx.fillRect(0, i, WIDTH, 1);
+    }
+}
+
+function loop() {
+    try {
+        update();
+        draw();
+    } catch(e) {
+        console.error("Game loop error:", e);
+    }
+    requestAnimationFrame(loop);
+}
+
+// --- UI & LIFECYCLE ---
+
+function showUI() {
+    document.getElementById('start-screen').classList.toggle('hidden', gameState !== STATE.MENU);
+    document.getElementById('game-over-screen').classList.toggle('hidden', gameState !== STATE.GAMEOVER);
+    document.getElementById('victory-screen').classList.toggle('hidden', gameState !== STATE.VICTORY);
+    document.getElementById('boss-ui').style.display = (gameState === STATE.PLAYING || gameState === STATE.CINEMATIC) ? 'flex' : 'none';
+}
+
+function init() {
+    // Reset collections
+    bullets = [];
+    enemyBullets = [];
+    blasters = [];
+    particles = [];
+    warnings = [];
+    stars = [];
+    
+    // Initialize objects
+    player = new Player();
+    boss = new Boss();
+    
+    // UI reset
+    document.getElementById('boss-health-bar').style.width = '100%';
+    
+    gameState = STATE.PLAYING;
+    showUI();
+}
+
+// Input Handlers
+window.onkeydown = e => {
+    if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = true;
+    if (e.key === 'ArrowRight' || e.key === 'd') keys.right = true;
+    if (e.key === ' ' || e.key === 'w' || e.key === 'ArrowUp') keys.shoot = true;
+};
+window.onkeyup = e => {
+    if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = false;
+    if (e.key === 'ArrowRight' || e.key === 'd') keys.right = false;
+    if (e.key === ' ' || e.key === 'w' || e.key === 'ArrowUp') keys.shoot = false;
+};
+
+// Touch Controls
+const setupTouch = (id, k) => {
+    const el = document.getElementById(id);
+    const start = e => { e.preventDefault(); keys[k] = true; };
+    const end = e => { e.preventDefault(); keys[k] = false; };
+    el.addEventListener('touchstart', start, {passive: false});
+    el.addEventListener('touchend', end, {passive: false});
+    el.addEventListener('mousedown', start);
+    el.addEventListener('mouseup', end);
+};
+setupTouch('btn-left', 'left');
+setupTouch('btn-right', 'right');
+setupTouch('btn-shoot', 'shoot');
+
+document.getElementById('start-btn').onclick = init;
+document.getElementById('restart-btn').onclick = init;
+document.getElementById('victory-btn').onclick = init;
+
+// Start loop immediately (it handles null safety internally)
+loop();
+
+</script>
+</body>
+</html>
